@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Helal Tarayıcı">
+<title>Helal Tarayıcı</title>
+<!-- Barkod Okuyucu -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<!-- Görselden Metin Okuma Yapay Zekası (OCR) -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --brand:#5B21B6;--brand-d:#4C1D95;--brand-bg:#F5F3FF;--brand-mid:#7C3AED;
+  --teal:#0D9488;--teal-bg:#CCFBF1;
+  --green:#15803D;--green-bg:#DCFCE7;
+  --amber:#B45309;--amber-bg:#FEF9C3;
+  --red:#BE123C;--red-bg:#FFF1F2;
+  --bg:#F5F3FF;--card:#fff;--border:#F3F0FF;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;background:var(--bg);color:#111827;min-height:100vh;padding-bottom:32px}
+
+.header{background:linear-gradient(135deg,#4C1D95,#5B21B6 60%,#7C3AED);padding:14px 18px 16px;padding-top:calc(env(safe-area-inset-top)+14px);position:sticky;top:0;z-index:100}
+.header-row{display:flex;align-items:center;justify-content:space-between}
+.header-title{color:#fff;font-size:19px;font-weight:700;letter-spacing:-.3px}
+.header-sub{color:rgba(255,255,255,.65);font-size:11px;margin-top:2px}
+
+.main{padding:14px;max-width:480px;margin:0 auto}
+
+/* PREFERENCES */
+.pref-container {
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 10px rgba(91,33,182,.06);
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: flex-start;
+}
+.pref-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9CA3AF;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.pref-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+.pref-label input {width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer;}
+
+/* SCAN CARD */
+.scan-card{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 2px 12px rgba(91,33,182,.08);margin-bottom:12px}
+.tabs{display:flex;border-bottom:1.5px solid #F3F0FF}
+.tab{flex:1;padding:11px 4px;font-size:12px;font-weight:600;text-align:center;cursor:pointer;color:#9CA3AF;border:none;background:transparent;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:all .15s}
+.tab.on{color:var(--brand);border-bottom-color:var(--brand)}
+.panel{display:none;padding:16px}
+.panel.on{display:block}
+
+/* BARCODE SCANNER */
+#scanner-box{position:relative;background:#0f0f14;border-radius:13px;overflow:hidden;aspect-ratio:4/3;margin-bottom:10px;display:none}
+#scanner-box video{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0}
+#scanner-box canvas{position:absolute;inset:0;width:100%;height:100%}
+.scanner-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;background:radial-gradient(ellipse at center,transparent 35%,rgba(0,0,0,.45) 100%);z-index:10}
+.frame{width:220px;height:90px;position:relative}
+.c{position:absolute;width:22px;height:22px;border-color:#fff;border-style:solid}
+.c.tl{top:0;left:0;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
+.c.tr{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
+.c.bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
+.c.br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
+.scan-beam{position:absolute;left:0;right:0;height:2px;background:#A855F7;box-shadow:0 0 8px #A855F7,0 0 16px rgba(168,85,247,.4);animation:beam 2.2s ease-in-out infinite}
+@keyframes beam{0%,100%{top:0;opacity:.9}50%{top:calc(100% - 2px);opacity:.9}}
+.scanner-hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;color:rgba(255,255,255,.65);font-size:12px;z-index:11}
+
+/* PHOTO OCR */
+.photo-drop{background:#FAFAFE;border:2px dashed #C4B5FD;border-radius:13px;padding:28px 16px;text-align:center;cursor:pointer;margin-bottom:10px;transition:all .15s}
+.photo-drop:active{background:#F5F3FF;border-color:var(--brand)}
+.drop-icon{font-size:38px;margin-bottom:8px;line-height:1}
+.drop-title{font-size:14px;font-weight:600;color:#4B5563;margin-bottom:3px}
+.drop-hint{font-size:11px;color:#9CA3AF}
+#photo-file{display:none}
+
+/* INPUTS */
+.inp-label{font-size:11px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block}
+.inp-row{display:flex;gap:8px;margin-bottom:14px}
+.inp{flex:1;padding:12px 13px;border:1.5px solid #E9E7F8;border-radius:11px;font-size:16px;outline:none;color:#111827;background:#FAFAFE;-webkit-appearance:none}
+.inp:focus{border-color:var(--brand);background:#fff}
+textarea.inp{width:100%;resize:vertical;min-height:110px;font-size:14px;line-height:1.5;margin-bottom:10px;display:block}
+
+/* BUTTONS */
+.btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:14px;border:none;border-radius:13px;font-size:15px;font-weight:700;cursor:pointer;-webkit-appearance:none;transition:opacity .15s,transform .1s}
+.btn:active{opacity:.85;transform:scale(.98)}
+.btn.purple{background:var(--brand);color:#fff}
+
+/* LOADING & UI CARDS */
+.load-card{background:#fff;border-radius:18px;padding:28px 20px;text-align:center;box-shadow:0 2px 12px rgba(91,33,182,.08);margin-bottom:12px;display:none}
+.load-card.on{display:block}
+.spin{width:38px;height:38px;border:3px solid var(--brand-bg);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-title{font-size:15px;font-weight:700;color:var(--brand);margin-bottom:3px}
+.load-sub{font-size:13px;color:#9CA3AF}
+
+.err-card{background:var(--red-bg);border:1px solid #FECDD3;border-radius:14px;padding:13px 15px;margin-bottom:12px;color:var(--red);font-size:13px;line-height:1.5;display:none}
+.err-card.on{display:block}
+.info-popup{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:14px;padding:13px 15px;margin-bottom:12px;color:#1E40AF;font-size:13px;line-height:1.5;display:none}
+.info-popup.on{display:block}
+
+/* RESULTS */
+.result-card{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.08);margin-bottom:12px;display:none}
+.result-card.on{display:block}
+.verdict-band{display:flex;align-items:center;gap:14px;padding:16px}
+.verdict-band.helal{background:var(--green-bg)}
+.verdict-band.suphelı{background:var(--amber-bg)}
+.verdict-band.haram{background:var(--red-bg)}
+.v-icon{font-size:30px;flex-shrink:0}
+.v-label{font-size:20px;font-weight:800;letter-spacing:-.3px}
+.v-label.helal{color:var(--green)}
+.v-label.suphelı{color:var(--amber)}
+.v-label.haram{color:var(--red)}
+.v-desc{font-size:12px;color:#6B7280;margin-top:2px}
+
+.r-product{font-size:15px;font-weight:700;color:#111827;padding:14px 16px 0}
+.r-summary{font-size:13px;color:#4B5563;line-height:1.6;padding:10px 16px 12px;border-bottom:1px solid #F3F0FF}
+
+.ing-list{padding:14px 16px}
+.ing-list-title{font-size:11px;font-weight:700;color:#7C3AED;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;border-bottom:1px solid #F3F0FF;padding-bottom:4px}
+.ing-row{display:flex;flex-direction:column;padding:10px 0;border-bottom:1px solid #FAFAFF}
+.ing-row:last-child{border-bottom:none}
+.ing-top-line{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:4px}
+.ing-name{font-size:13px;font-weight:600;color:#1F2937;line-height:1.3}
+.ing-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;flex-shrink:0}
+.ing-tag.helal{background:var(--green-bg);color:var(--green)}
+.ing-tag.suphelı{background:var(--amber-bg);color:var(--amber)}
+.ing-tag.haram{background:var(--red-bg);color:var(--red)}
+.ing-why{font-size:12px;color:#4B5563;line-height:1.4;background:#FAFAFE;padding:6px 10px;border-radius:8px;margin-top:2px}
+
+/* HISTORY */
+.hist-card{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 2px 12px rgba(91,33,182,.08);margin-bottom:12px}
+.hist-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #F3F0FF}
+.hist-head-title{font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.6px}
+.hist-clear{font-size:12px;color:#7C3AED;background:none;border:none;cursor:pointer;text-decoration:underline;padding:0}
+.hist-row{display:flex;align-items:center;padding:12px 16px;gap:12px;border-bottom:1px solid #FAFAFF;cursor:pointer}
+.hist-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.hist-dot.helal{background:#22C55E}
+.hist-dot.suphelı{background:#EAB308}
+.hist-dot.haram{background:#EF4444}
+.hist-name{font-size:13px;font-weight:500;color:#374151;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-v{font-size:12px;font-weight:700}
+.hist-v.helal{color:#16A34A}.hist-v.suphelı{color:#CA8A04}.hist-v.haram{color:#DC2626}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-row">
+    <div>
+      <div class="header-title">🌙 Helal Tarayıcı</div>
+      <div class="header-sub">Yapay Zeka Destekli Hanefi Fıkıh Motoru</div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="pref-container">
+    <span class="pref-title">Tercihler:</span>
+    <label class="pref-label">
+      <input type="checkbox" id="chk-vegan" onchange="handlePrefChange('vegan')"> 🌿 Vegan
+    </label>
+    <label class="pref-label">
+      <input type="checkbox" id="chk-vegetarian" onchange="handlePrefChange('vegetarian')"> 🥛 Vejetaryen
+    </label>
+  </div>
+
+  <div class="scan-card">
+    <div class="tabs">
+      <button class="tab on" onclick="goTab('barcode')">📷 Barkod</button>
+      <button class="tab" onclick="goTab('photo')">📸 Kamera & Okuma</button>
+      <button class="tab" onclick="goTab('manual')">✍️ Metin</button>
+    </div>
+
+    <!-- BARKOD TAB -->
+    <div id="tab-barcode" class="panel on">
+      <div id="scanner-box">
+        <div id="interactive"></div>
+        <div class="scanner-overlay">
+          <div class="frame">
+            <div class="c tl"></div><div class="c tr"></div>
+            <div class="c bl"></div><div class="c br"></div>
+            <div class="scan-beam"></div>
+          </div>
+        </div>
+        <div class="scanner-hint">Barkodu kutunun içine ortalayın</div>
+      </div>
+      <button class="btn purple" id="scan-btn" onclick="toggleScanner()">📷 &nbsp; Kamerayı Başlat</button>
+      <div style="margin-top: 16px;">
+        <span class="inp-label">Veya Barkod No Girin</span>
+        <div class="inp-row">
+          <input type="number" class="inp" id="barcode-inp" placeholder="8712345678901" inputmode="numeric">
+          <button class="btn purple" onclick="lookupBarcode()" style="width:auto;padding:0 18px;border-radius:11px">Sorgula</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KAMERA / OCR TAB -->
+    <div id="tab-photo" class="panel">
+      <div class="photo-drop" onclick="document.getElementById('photo-file').click()">
+        <div class="drop-icon">📸</div>
+        <div class="drop-title">İçindekiler Listesini Fotoğrafla</div>
+        <div class="drop-hint">Yapay Zeka Metni Otomatik Okuyup Ayrıştırır</div>
+      </div>
+      <input type="file" id="photo-file" accept="image/*" capture="environment" onchange="processImage(event)">
+    </div>
+
+    <!-- MANUAL TEXT TAB -->
+    <div id="tab-manual" class="panel">
+      <span class="inp-label">İçindekiler Listesini Yapıştırın</span>
+      <textarea class="inp" id="ing-text" placeholder="Örn: Water, sugar, gelatin, E471, carmine..."></textarea>
+      <button class="btn purple" onclick="analyzeText()">Bileşenleri Analiz Et</button>
+    </div>
+  </div>
+
+  <div class="load-card" id="load-card">
+    <div class="spin"></div>
+    <div class="load-title" id="load-title">İşleniyor</div>
+    <div class="load-sub" id="load-sub">Lütfen bekleyin...</div>
+  </div>
+
+  <div class="info-popup" id="info-popup"></div>
+  <div class="err-card" id="err-card"></div>
+
+  <!-- RESULTS -->
+  <div class="result-card" id="result-card">
+    <div class="verdict-band" id="v-band">
+      <div class="v-icon" id="v-icon"></div>
+      <div>
+        <div class="v-label" id="v-label"></div>
+        <div class="v-desc" id="v-desc"></div>
+      </div>
+    </div>
+    <div class="r-product" id="r-product"></div>
+    <div class="r-summary" id="r-summary"></div>
+    <div class="ing-list">
+      <div class="ing-list-title">Okunan Tüm Bileşenlerin Analizi</div>
+      <div id="ing-list"></div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="hist-card" id="hist-card" style="display:none">
+    <div class="hist-head">
+      <div class="hist-head-title">Son Taramalar</div>
+      <button class="hist-clear" onclick="clearHist()">Temizle</button>
+    </div>
+    <div id="hist-list"></div>
+  </div>
+
+</div>
+
+<script>
+let scanOn=false;
+let prefMode = 'standard'; 
+let hist=[];
+try{hist=JSON.parse(localStorage.getItem('hh')||'[]')}catch(e){hist=[]}
+
+const haramRules = [
+  {keys: ['pork', 'domuz', 'schwein', 'porc', 'lard'], name: 'Domuz ve Türevleri', why: 'Hanefi mezhebine göre kesinlikle haramdır, hiçbir şekilde tüketilemez.'},
+  {keys: ['e120', 'carmine', 'karmin', 'cochineal', 'kosnil'], name: 'E120 (Karmin)', why: 'Böcek türevi bir renklendiricidir. Böcek tüketimi Hanefi mezhebinde caiz değildir.'},
+  {keys: ['alcohol', 'alkol', 'ethanol', 'etanollu', 'wine', 'bira', 'sarap'], name: 'Alkol / Etanol', why: 'Gıdalara eklenen keyif verici alkol türevleri haramdır.'},
+  {keys: ['pork gelatin', 'domuz jelatini'], name: 'Domuz Jelatini', why: 'Necaset kaynağı olan hayvandan üretildiği için haramdır.'}
+];
+
+const supheliRules = [
+  {keys: ['e471', 'e472', 'mono- and di-glycerides', 'mono ve digliserit', 'digliserid'], name: 'E471 / E472 (Yağ Asitleri)', why: 'Bitkisel veya hayvansal olabilir. Sertifika yoksa hayvansal yağ riski taşıdığı için şüphelidir.'},
+  {keys: ['gelatin', 'jelatin', 'e441', 'gelatine'], name: 'Jelatin / E441', why: 'İslami usulle kesilmemiş sığır veya domuz olma ihtimali yüksektir. Sertifikasız tüketimi şüphe barındırır.'},
+  {keys: ['pepsin', 'rennet', 'peynir mayasi', 'mayasi'], name: 'Hayvansal Peynir Mayası', why: 'Kesim şartı belirsiz hayvanlardan elde edilme riski nedeniyle şüpheli gruptadır.'},
+  {keys: ['e920', 'l-cysteine', 'sistein'], name: 'E920 (L-Sistein)', why: 'İnsan saçı veya domuz kılından üretilme riski yüksektir.'},
+  {keys: ['aroma', 'flavour', 'natural flavour'], name: 'Aroma Vericiler', why: 'Aromaların üretiminde alkol (etanol) taşıyıcı kullanılma ihtimali mevcuttur.'},
+  {keys: ['enzyme', 'enzim'], name: 'Enzimler', why: 'Mikrobiyal değilse, kesimi belirsiz hayvan organlarından elde edilme riski taşır.'}
+];
+
+const helalAçıklamalar = {
+  'water': 'Su: Doğal ve helaldir.', 'su': 'Su: Doğal ve helaldir.',
+  'sugar': 'Şeker: Bitkisel kökenlidir, helaldir.', 'seker': 'Şeker: Bitkisel kökenlidir, helaldir.',
+  'salt': 'Tuz: Mineraldir, helaldir.', 'tuz': 'Tuz: Mineraldir, helaldir.',
+  'lecithin': 'Lesitin: Genellikle bitkisel (soya) kaynaklıdır, temizdir.',
+  'citric acid': 'Sitrik Asit (E330): Bitkisel/mikrobiyal asitlik düzenleyicidir, helaldir.',
+  'flour': 'Un: Tahıl ürünüdür, helaldir.', 'oil': 'Bitkisel Yağ: Helaldir.'
+};
+
+function handlePrefChange(mode) {
+  const chkVegan = document.getElementById('chk-vegan');
+  const chkVeg = document.getElementById('chk-vegetarian');
+  if (mode === 'vegan' && chkVegan.checked) {
+    chkVeg.checked = false; prefMode = 'vegan';
+  } else if (mode === 'vegetarian' && chkVeg.checked) {
+    chkVegan.checked = false; prefMode = 'vegetarian';
+  } else {
+    prefMode = 'standard';
+  }
+}
+
+function goTab(t){
+  ['barcode','photo','manual'].forEach((n,i)=>{
+    document.querySelectorAll('.tab')[i].classList.toggle('on',n===t);
+  });
+  document.getElementById('tab-barcode').style.display = (t==='barcode'?'block':'none');
+  document.getElementById('tab-photo').style.display = (t==='photo'?'block':'none');
+  document.getElementById('tab-manual').style.display = (t==='manual'?'block':'none');
+  if(t!=='barcode' && scanOn) stopScanner();
+}
+
+// BARKOD
+function toggleScanner(){scanOn?stopScanner():startScanner()}
+function startScanner(){
+  document.getElementById('scanner-box').style.display='block';
+  document.getElementById('scan-btn').innerHTML='⏹ &nbsp; Kamerayı Durdur';
+  scanOn=true;
+  Quagga.init({
+    inputStream:{name:"Live",type:"LiveStream",target:document.querySelector('#interactive'),constraints:{facingMode:"environment"}},
+    decoder:{readers:["ean_reader","ean_8_reader","code_128_reader","upc_reader"]}
+  },function(err){
+    if(err){showErr("Kamera başlatılamadı.");stopScanner();return}
+    Quagga.start();
+  });
+  Quagga.onDetected(function(r){
+    stopScanner(); fetchProduct(r.codeResult.code);
+  });
+}
+function stopScanner(){
+  try{Quagga.stop()}catch(e){}
+  scanOn=false;
+  document.getElementById('scanner-box').style.display='none';
+  document.getElementById('scan-btn').innerHTML='📷 &nbsp; Kamerayı Başlat';
+}
+
+async function fetchProduct(barcode){
+  showLoad("Veritabanı Taranıyor",`Barkod ${barcode} kontrol ediliyor...`);
+  hideResult(); hideErr(); hidePopup();
+  try{
+    const res=await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+    const d=await res.json();
+    if(!d.product || (!d.product.ingredients_text_tr && !d.product.ingredients_text_en && !d.product.ingredients_text)){
+      hideLoad();
+      showPopup(`⚠️ Ürün veritabanında bulunamadı veya maddeleri eksik. Lütfen 'Kamera & Okuma' sekmesinden paketin arkasını fotoğraflayın.`);
+      goTab('photo'); return;
+    }
+    const name=d.product.product_name_tr||d.product.product_name_en||d.product.product_name||`Ürün (${barcode})`;
+    const ing=d.product.ingredients_text_tr||d.product.ingredients_text_en||d.product.ingredients_text||'';
+    localAnalyze(name, ing);
+  }catch(e){
+    hideLoad(); showPopup("⚠️ İnternet hatası. Kameradan okutmayı deneyin."); goTab('photo');
+  }
+}
+function lookupBarcode(){
+  const c=document.getElementById('barcode-inp').value.trim();
+  if(!c){showErr("Barkod numarası girin.");return}
+  fetchProduct(c);
+}
+
+// GÖRSELDEN METİN OKUMA (OCR - YAPAY ZEKA)
+async function processImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  showLoad("Görsel Analizi (OCR)", "Yapay zeka görseldeki metinleri ayrıştırıyor. Bu işlem telefon hızına göre 5-15 saniye sürebilir...");
+  hideResult(); hideErr(); hidePopup();
+  
+  try {
+    const worker = await Tesseract.createWorker('eng+tur');
+    const ret = await worker.recognize(file);
+    const text = ret.data.text;
+    await worker.terminate();
+    
+    if(!text || text.trim().length < 5) {
+      hideLoad();
+      showErr("Fotoğraftan yeterli metin okunamadı. Lütfen ışıklı bir ortamda, yazılar net okunacak şekilde tekrar çekin.");
+      return;
+    }
+    
+    // Okunan metni manuel kutuya da atalım ki kullanıcı ne okunduğunu görsün
+    document.getElementById('ing-text').value = text;
+    localAnalyze("Görselden Okunan İçerik", text);
+    
+  } catch (error) {
+    hideLoad();
+    showErr("Görsel okunurken bir sorun oluştu.");
+  }
+}
+
+function analyzeText(){
+  const t=document.getElementById('ing-text').value.trim();
+  if(!t){showErr("İçerik yazısı girin.");return}
+  localAnalyze("Manuel/OCR İçerik Analizi", t);
+}
+
+// MERKEZİ ANALİZ MOTORU
+function localAnalyze(productName, ingredientsText){
+  showLoad("Fıkıh Motoru Çalışıyor","Bileşenler Hanefi kurallarına göre taranıyor...");
+  hideErr(); hidePopup();
+  
+  let rawIngredients = ingredientsText.split(/[,.\n;()]+/);
+  let parsedIngredients = [];
+  let globalVerdict = 'helal';
+
+  rawIngredients.forEach(item => {
+    let cleanItem = item.trim().replace(/[*\[\]]/g, '');
+    if (!cleanItem || cleanItem.length < 2) return;
+    
+    let lowerItem = cleanItem.toLowerCase();
+    let matched = false;
+    
+    for (let rule of haramRules) {
+      for (let key of rule.keys) {
+        if (lowerItem.includes(key)) {
+          parsedIngredients.push({original: cleanItem, name: rule.name, verdict: 'haram', why: rule.why});
+          globalVerdict = 'haram';
+          matched = true; break;
+        }
+      }
+      if (matched) break;
+    }
+    if (matched) return;
+
+    for (let rule of supheliRules) {
+      for (let key of rule.keys) {
+        if (lowerItem.includes(key)) {
+          let status = 'suphelı';
+          let rationale = rule.why;
+
+          if (prefMode === 'vegan') {
+            status = 'haram';
+            rationale = `🌿 VEGAN FİLTRESİ: ${rule.name} maddesi hayvansal risk taşıdığı için Hanefi fıkhına ve vegan kurallarına aykırıdır.`;
+            globalVerdict = 'haram';
+          } 
+          else if (prefMode === 'vegetarian' && (key.includes('gelat') || key.includes('mayasi') || key.includes('pepsin'))) {
+            status = 'haram';
+            rationale = `🥛 VEJETARYEN FİLTRESİ: Bu madde kesim şartı veya et/kemik özü içerdiği için aykırıdır.`;
+            globalVerdict = 'haram';
+          } else {
+            if (globalVerdict !== 'haram') globalVerdict = 'suphelı';
+          }
+
+          parsedIngredients.push({original: cleanItem, name: rule.name, verdict: status, why: rationale});
+          matched = true; break;
+        }
+      }
+      if (matched) break;
+    }
+    if (matched) return;
+
+    let foundHelalKey = Object.keys(helalAçıklamalar).find(k => lowerItem.includes(k));
+    if (foundHelalKey) {
+      parsedIngredients.push({
+        original: cleanItem, name: cleanItem, verdict: 'helal', why: helalAçıklamalar[foundHelalKey]
+      });
+    } else {
+      parsedIngredients.push({
+        original: cleanItem, name: cleanItem, verdict: 'helal', why: 'Hanefi fıkhına göre aksine bir hayvansal/alkol şüphesi kanıtlanmadığı sürece temiz ve helal kabul edilir.'
+      });
+    }
+  });
+
+  if (parsedIngredients.length === 0) {
+    parsedIngredients.push({original: ingredientsText, name: "İçerik", verdict: 'helal', why: 'Açık bir haram/şüpheli tespit edilemedi.'});
+  }
+
+  let finalSummary = "Ürün içeriği temiz görünmektedir. Şüpheli bir koda rastlanmadı.";
+  if (globalVerdict === 'haram') {
+    finalSummary = prefMode !== 'standard' 
+      ? `Seçtiğiniz filtreye (${prefMode.toUpperCase()}) ve fıkha tamamen aykırı bileşen(ler) bulundu!`
+      : "DİKKAT! Ürün içinde tüketimi haram veya sakıncalı olan maddeler tespit edilmiştir.";
+  } else if (globalVerdict === 'suphelı') {
+    finalSummary = "Üründe kaynağı belirsiz maddeler tespit edilmiştir. Helal Sertifikası aranması önerilir.";
+  }
+
+  hideLoad();
+  showResult(productName, globalVerdict, finalSummary, parsedIngredients);
+  saveHist(productName, globalVerdict);
+}
+
+function showResult(name, verdict, summary, ingredientsList){
+  const icons={helal:'✅',suphelı:'⚠️',haram:'❌'};
+  const labels={helal:'HELAL',suphelı:'ŞÜPHELİ',haram:'UYGUN DEĞİL'};
+  
+  document.getElementById('v-band').className='verdict-band '+verdict;
+  document.getElementById('v-icon').textContent=icons[verdict];
+  document.getElementById('v-label').textContent=labels[verdict];
+  document.getElementById('v-label').className='v-label '+verdict;
+  document.getElementById('r-product').textContent=name;
+  document.getElementById('r-summary').textContent=summary;
+
+  const listElement=document.getElementById('ing-list');
+  listElement.innerHTML='';
+  const tagLabels={helal:'Temiz',suphelı:'Şüpheli',haram:'Aykırı'};
+
+  ingredientsList.forEach(i=>{
+    const row=document.createElement('div');
+    row.className='ing-row';
+    row.innerHTML=`
+      <div class="ing-top-line">
+        <div class="ing-name">${i.original}</div>
+        <span class="ing-tag ${i.verdict}">${tagLabels[i.verdict]}</span>
+      </div>
+      <div class="ing-why">${i.why}</div>
+    `;
+    listElement.appendChild(row);
+  });
+
+  const card=document.getElementById('result-card');
+  card.classList.add('on');
+  setTimeout(()=>card.scrollIntoView({behavior:'smooth',block:'start'}),100);
+}
+
+function saveHist(name, verdict){
+  hist = hist.filter(item => item.name !== name);
+  hist.unshift({name, verdict});
+  if(hist.length>5) hist=hist.slice(0,5);
+  try{localStorage.setItem('hh',JSON.stringify(hist))}catch(e){}
+  renderHist();
+}
+function renderHist(){
+  if(!hist.length){document.getElementById('hist-card').style.display='none';return}
+  document.getElementById('hist-card').style.display='block';
+  const labels={helal:'Helal',suphelı:'Şüpheli',haram:'Aykırı'};
+  const container = document.getElementById('hist-list');
+  container.innerHTML = '';
+  hist.forEach(h => {
+    const row = document.createElement('div');
+    row.className = 'hist-row';
+    row.innerHTML = `<div class="hist-dot ${h.verdict}"></div><div class="hist-name">${h.name}</div><div class="hist-v ${h.verdict}">${labels[h.verdict]}</div>`;
+    container.appendChild(row);
+  });
+}
+function clearHist(){
+  hist=[]; try{localStorage.setItem('hh','[]')}catch(e){}
+  document.getElementById('hist-card').style.display='none';
+}
+
+function showLoad(t,s){document.getElementById('load-title').textContent=t;document.getElementById('load-sub').textContent=s;document.getElementById('load-card').classList.add('on')}
+function hideLoad(){document.getElementById('load-card').classList.remove('on')}
+function showErr(m){const e=document.getElementById('err-card');e.textContent=m;e.classList.add('on')}
+function hideErr(){document.getElementById('err-card').classList.remove('on')}
+function showPopup(m){const p=document.getElementById('info-popup');p.textContent=m;p.className='info-popup on'}
+function hidePopup(){document.getElementById('info-popup').classList.remove('on')}
+function hideResult(){document.getElementById('result-card').classList.remove('on')}
+
+renderHist();
+</script>
+</body>
+</html>
