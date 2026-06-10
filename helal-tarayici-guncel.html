@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Helal Tarayıcı">
+<title>Helal Tarayıcı</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --brand:#5B21B6;--brand-d:#4C1D95;--brand-bg:#F5F3FF;--brand-mid:#7C3AED;
+  --teal:#0D9488;--teal-bg:#CCFBF1;
+  --green:#15803D;--green-bg:#DCFCE7;
+  --amber:#B45309;--amber-bg:#FEF9C3;
+  --red:#BE123C;--red-bg:#FFF1F2;
+  --pink:#BE185D;--pink-bg:#FCE7F3;
+  --bg:#F5F3FF;--card:#fff;--border:#F3F0FF;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;background:var(--bg);color:#111827;min-height:100vh;padding-bottom:32px}
+
+.header{background:linear-gradient(135deg,#4C1D95,#5B21B6 60%,#7C3AED);padding:14px 18px 16px;padding-top:calc(env(safe-area-inset-top)+14px);position:sticky;top:0;z-index:100}
+.header-row{display:flex;align-items:center;justify-content:space-between}
+.header-title{color:#fff;font-size:19px;font-weight:700;letter-spacing:-.3px}
+.header-sub{color:rgba(255,255,255,.65);font-size:11px;margin-top:2px}
+.mode-pill{font-size:11px;font-weight:700;padding:5px 11px;border-radius:20px;letter-spacing:.2px}
+.mode-pill.standard{background:rgba(255,255,255,.18);color:#fff}
+.mode-pill.vegan{background:#CCFBF1;color:#0D9488}
+.mode-pill.vegetarian{background:#DCFCE7;color:#15803D}
+
+.main{padding:14px;max-width:480px;margin:0 auto}
+
+/* DIET SELECTOR */
+.diet-card{background:#fff;border-radius:18px;padding:14px 15px;margin-bottom:12px;box-shadow:0 2px 12px rgba(91,33,182,.08)}
+.section-label{font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+.diet-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.diet-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 6px;border-radius:13px;border:1.5px solid #E9E7F8;background:transparent;cursor:pointer;font-size:11px;font-weight:600;color:#9CA3AF;transition:all .15s}
+.diet-emoji{font-size:22px;line-height:1}
+.diet-btn.sel-standard{border-color:var(--brand);background:var(--brand-bg);color:var(--brand)}
+.diet-btn.sel-vegan{border-color:var(--teal);background:var(--teal-bg);color:var(--teal)}
+.diet-btn.sel-vegetarian{border-color:var(--green);background:var(--green-bg);color:var(--green)}
+.diet-info{margin-top:9px;padding-top:9px;border-top:1px solid #F3F0FF;font-size:12px;color:#6B7280;line-height:1.5}
+
+/* SCAN CARD */
+.scan-card{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 2px 12px rgba(91,33,182,.08);margin-bottom:12px}
+.tabs{display:flex;border-bottom:1.5px solid #F3F0FF}
+.tab{flex:1;padding:11px 4px;font-size:12px;font-weight:600;text-align:center;cursor:pointer;color:#9CA3AF;border:none;background:transparent;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:all .15s}
+.tab.on{color:var(--brand);border-bottom-color:var(--brand)}
+.panel{display:none;padding:16px}
+.panel.on{display:block}
+
+/* SCANNER */
+#scanner-box{position:relative;background:#0f0f14;border-radius:13px;overflow:hidden;aspect-ratio:4/3;margin-bottom:10px;display:none}
+#scanner-box video{width:100%;height:100%;object-fit:cover}
+#interactive{width:100%;height:100%}
+#interactive video{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0}
+#scanner-box canvas{position:absolute;inset:0;width:100%;height:100%}
+.scanner-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;background:radial-gradient(ellipse at center,transparent 35%,rgba(0,0,0,.45) 100%);z-index:10}
+.frame{width:220px;height:90px;position:relative}
+.c{position:absolute;width:22px;height:22px;border-color:#fff;border-style:solid}
+.c.tl{top:0;left:0;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
+.c.tr{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
+.c.bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
+.c.br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
+.scan-beam{position:absolute;left:0;right:0;height:2px;background:#A855F7;box-shadow:0 0 8px #A855F7,0 0 16px rgba(168,85,247,.4);animation:beam 2.2s ease-in-out infinite}
+@keyframes beam{0%,100%{top:0;opacity:.9}50%{top:calc(100% - 2px);opacity:.9}}
+.scanner-hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;color:rgba(255,255,255,.65);font-size:12px;z-index:11}
+
+/* PHOTO */
+.photo-drop{background:#FAFAFE;border:2px dashed #C4B5FD;border-radius:13px;padding:28px 16px;text-align:center;cursor:pointer;margin-bottom:10px;transition:all .15s}
+.photo-drop:active{background:#F5F3FF;border-color:var(--brand)}
+.drop-icon{font-size:38px;margin-bottom:8px;line-height:1}
+.drop-title{font-size:14px;font-weight:600;color:#4B5563;margin-bottom:3px}
+.drop-hint{font-size:11px;color:#9CA3AF}
+.photo-tip{font-size:11px;color:#8B5CF6;background:#F5F3FF;border-radius:8px;padding:8px 10px;margin-top:8px;margin-bottom:10px}
+#photo-preview-wrap{display:none;margin-bottom:10px;border-radius:13px;overflow:hidden;background:#0f0f14}
+#photo-preview{width:100%;max-height:260px;object-fit:contain;display:block}
+.two-btn-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:0}
+#photo-file{display:none}
+
+/* MANUAL */
+.inp-label{font-size:11px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block}
+.inp-row{display:flex;gap:8px;margin-bottom:14px}
+.inp{flex:1;padding:12px 13px;border:1.5px solid #E9E7F8;border-radius:11px;font-size:16px;outline:none;color:#111827;background:#FAFAFE;-webkit-appearance:none}
+.inp:focus{border-color:var(--brand);background:#fff}
+.inp-row .btn{flex-shrink:0;width:auto;padding:0 16px;border-radius:11px}
+textarea.inp{width:100%;resize:vertical;min-height:110px;font-size:14px;line-height:1.5;margin-bottom:10px;display:block}
+
+/* BTN */
+.btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:14px;border:none;border-radius:13px;font-size:15px;font-weight:700;cursor:pointer;-webkit-appearance:none;transition:opacity .15s,transform .1s}
+.btn:active{opacity:.85;transform:scale(.98)}
+.btn.purple{background:var(--brand);color:#fff}
+.btn.teal{background:var(--teal);color:#fff}
+.btn.ghost{background:var(--brand-bg);color:var(--brand)}
+.btn.pink{background:#9333EA;color:#fff}
+
+/* LOADING */
+.load-card{background:#fff;border-radius:18px;padding:28px 20px;text-align:center;box-shadow:0 2px 12px rgba(91,33,182,.08);margin-bottom:12px;display:none}
+.load-card.on{display:block}
+.spin{width:38px;height:38px;border:3px solid var(--brand-bg);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-title{font-size:15px;font-weight:700;color:var(--brand);margin-bottom:3px}
+.load-sub{font-size:13px;color:#9CA3AF}
+
+/* ERROR */
+.err-card{background:var(--red-bg);border:1px solid #FECDD3;border-radius:14px;padding:13px 15px;margin-bottom:12px;color:var(--red);font-size:13px;line-height:1.5;display:none}
+.err-card.on{display:block}
+
+/* RESULT */
+.result-card{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.08);margin-bottom:12px;display:none}
+.result-card.on{display:block}
+.verdict-band{display:flex;align-items:center;gap:14px;padding:16px}
+.verdict-band.helal{background:var(--green-bg)}
+.verdict-band.suphelı{background:var(--amber-bg)}
+.verdict-band.haram{background:var(--red-bg)}
+.v-icon{font-size:30px;flex-shrink:0}
+.v-label{font-size:20px;font-weight:800;letter-spacing:-.3px}
+.v-label.helal{color:var(--green)}
+.v-label.suphelı{color:var(--amber)}
+.v-label.haram{color:var(--red)}
+.v-desc{font-size:12px;color:#6B7280;margin-top:2px}
+.r-product{font-size:14px;font-weight:600;color:#374151;padding:12px 16px 0}
+.r-extracted{background:var(--brand-bg);margin:10px 16px 0;border-radius:10px;padding:9px 11px;display:none}
+.r-ext-label{font-size:9px;font-weight:800;color:var(--brand-mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.r-ext-text{font-size:11px;color:#5B21B6;line-height:1.4}
+.r-summary{font-size:13px;color:#4B5563;line-height:1.6;padding:10px 16px 12px;border-bottom:1px solid #F9F7FF}
+.ing-list{padding:12px 16px 4px}
+.ing-list-title{font-size:10px;font-weight:700;color:#C4B5FD;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+.ing-row{display:flex;align-items:flex-start;justify-content:space-between;padding:8px 0;border-bottom:1px solid #FAFAFF;gap:10px}
+.ing-row:last-child{border-bottom:none;padding-bottom:4px}
+.ing-name{font-size:13px;font-weight:500;color:#1F2937;line-height:1.3}
+.ing-why{font-size:11px;color:#9CA3AF;margin-top:2px}
+.ing-tag{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;flex-shrink:0;margin-top:1px}
+.ing-tag.helal{background:var(--green-bg);color:var(--green)}
+.ing-tag.suphelı{background:var(--amber-bg);color:var(--amber)}
+.ing-tag.haram{background:var(--red-bg);color:var(--red)}
+
+/* HISTORY */
+.hist-card{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 2px 12px rgba(91,33,182,.08);margin-bottom:12px}
+.hist-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #F3F0FF}
+.hist-head-title{font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.6px}
+.hist-clear{font-size:12px;color:#C4B5FD;background:none;border:none;cursor:pointer;text-decoration:underline;padding:0}
+.hist-row{display:flex;align-items:center;padding:10px 16px;gap:10px;border-bottom:1px solid #FAFAFF;cursor:pointer}
+.hist-row:last-child{border-bottom:none}
+.hist-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.hist-dot.helal{background:#22C55E}
+.hist-dot.suphelı{background:#EAB308}
+.hist-dot.haram{background:#EF4444}
+.hist-name{font-size:13px;color:#374151;flex:1}
+.hist-v{font-size:11px;font-weight:700}
+.hist-v.helal{color:#16A34A}.hist-v.suphelı{color:#CA8A04}.hist-v.haram{color:#DC2626}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-row">
+    <div>
+      <div class="header-title">🌙 Helal Tarayıcı</div>
+      <div class="header-sub">Hanefi Mezhebi · Yerel Analiz Motoru</div>
+    </div>
+    <div class="mode-pill standard" id="mode-pill">🍖 Standart</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- DIET MODE -->
+  <div class="diet-card">
+    <div class="section-label">Beslenme Tercihiniz</div>
+    <div class="diet-grid">
+      <button class="diet-btn sel-standard" id="d-standard" onclick="setDiet('standard')">
+        <span class="diet-emoji">🍖</span><span>Standart</span>
+      </button>
+      <button class="diet-btn" id="d-vegan" onclick="setDiet('vegan')">
+        <span class="diet-emoji">🌿</span><span>Vegan</span>
+      </button>
+      <button class="diet-btn" id="d-vegetarian" onclick="setDiet('vegetarian')">
+        <span class="diet-emoji">🥛</span><span>Vejetaryen</span>
+      </button>
+    </div>
+    <div class="diet-info" id="diet-info">Tüm hayvansal ürünler Hanefi kurallarına göre değerlendirilir.</div>
+  </div>
+
+  <!-- SCAN CARD -->
+  <div class="scan-card">
+    <div class="tabs">
+      <button class="tab on" onclick="goTab('barcode')">📷 Barkod</button>
+      <button class="tab" onclick="goTab('photo')">✍️ Metin Analizi</button>
+    </div>
+
+    <!-- BARCODE -->
+    <div id="tab-barcode" class="panel on">
+      <div id="scanner-box">
+        <div id="interactive"></div>
+        <div class="scanner-overlay">
+          <div class="frame">
+            <div class="c tl"></div><div class="c tr"></div>
+            <div class="c bl"></div><div class="c br"></div>
+            <div class="scan-beam"></div>
+          </div>
+        </div>
+        <div class="scanner-hint">Barkodu çerçeve içine getirin</div>
+      </div>
+      <button class="btn purple" id="scan-btn" onclick="toggleScanner()">📷 &nbsp; Kamerayı Başlat</button>
+      <div style="margin-top: 15px;">
+        <span class="inp-label">Veya Barkod No Girin</span>
+        <div class="inp-row">
+          <input type="number" class="inp" id="barcode-inp" placeholder="8712345678901" inputmode="numeric">
+          <button class="btn purple" onclick="lookupBarcode()" style="width:auto;padding:0 15px;border-radius:11px">Sorgula</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- METIN GİRİŞİ -->
+    <div id="tab-photo" class="panel">
+      <span class="inp-label">İçindekiler Listesini Yapıştırın</span>
+      <textarea class="inp" id="ing-text" placeholder="Örnek: Water, sugar, gelatin, E471, carmine, pork fat, cochineal..."></textarea>
+      <button class="btn pink" onclick="analyzeText()">Bileşenleri Analiz Et</button>
+    </div>
+  </div>
+
+  <!-- LOADING -->
+  <div class="load-card" id="load-card">
+    <div class="spin"></div>
+    <div class="load-title" id="load-title">İşleniyor</div>
+    <div class="load-sub" id="load-sub">Lütfen bekleyin...</div>
+  </div>
+
+  <!-- ERROR -->
+  <div class="err-card" id="err-card"></div>
+
+  <!-- RESULT -->
+  <div class="result-card" id="result-card">
+    <div class="verdict-band" id="v-band">
+      <div class="v-icon" id="v-icon"></div>
+      <div>
+        <div class="v-label" id="v-label"></div>
+        <div class="v-desc" id="v-desc"></div>
+      </div>
+    </div>
+    <div class="r-product" id="r-product"></div>
+    <div class="r-summary" id="r-summary"></div>
+    <div class="ing-list">
+      <div class="ing-list-title">Tespit Edilen Kritik Maddeler</div>
+      <div id="ing-list"></div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="hist-card" id="hist-card" style="display:none">
+    <div class="hist-head">
+      <div class="hist-head-title">Son Sorgular</div>
+      <button class="hist-clear" onclick="clearHist()">Temizle</button>
+    </div>
+    <div id="hist-list"></div>
+  </div>
+
+</div>
+
+<script>
+let scanOn=false, diet='standard';
+let hist=[];
+try{hist=JSON.parse(localStorage.getItem('hh')||'[]')}catch(e){hist=[]}
+
+// Yerel Tarama Kelime Veritabanı (Hanefi Kuralları)
+const haramList = [
+  {keys: ['pork', 'domuz', 'schwein', 'porc', 'lard'], name: 'Domuz ve Türevleri', why: 'Hanefi ve tüm mezheplerde kesinlikle haramdır.'},
+  {keys: ['e120', 'carmine', 'karmin', 'cochineal', 'kosnil'], name: 'E120 / Karmin', why: 'Böcek kaynaklı renklendirici, Hanefi mezhebinde haram kabul edilir.'},
+  {keys: ['alcohol', 'alkol', 'ethanol', 'etanollu', 'wine', 'bira', 'sarap'], name: 'Alkol / Etanol', why: 'Gıdalara eklenen keyif verici/sarhoş edici alkol türevleri haramdır.'},
+  {keys: ['gelatin', 'jelatin', 'pork gelatin'], name: 'Domuz Jelatini', why: 'Kaynağı belirtilmemiş jelatinlerin domuz olma riski çok yüksektir.'}
+];
+
+const supheliList = [
+  {keys: ['e471', 'e472', 'mono- and di-glycerides', 'mono ve digliserit'], name: 'E471 / E472 Yağ Asitleri', why: 'Bitkisel veya hayvansal (domuz dahil) olabilir. Sertifika aranmalıdır.'},
+  {keys: ['e441', 'gelatine', 'jelatın'], name: 'Jelatin (Genel)', why: 'Sığır veya bitkisel olduğu kanıtlanmadıkça şüphelidir.'},
+  {keys: ['pepsin', 'rennet', 'peynir mayasi', 'mayasi'], name: 'Hayvansal Peynir Mayası', why: 'İslam dışı usulle kesilmiş hayvan kaynaklı olma riski vardır.'},
+  {keys: ['e920', 'l-cysteine', 'sistein'], name: 'E920 L-Sistein', why: 'İnsan saçı veya domuz kılınca üretilme riski taşır.'},
+  {keys: ['aroma', 'flavour', 'natural flavour'], name: 'Aroma Vericiler', why: 'Taşıyıcı olarak alkol kullanılma ihtimali bulunur.'},
+  {keys: ['enzyme', 'enzim'], name: 'Enzimler', why: 'Mikrobiyal değilse, hayvansal kaynağı şüphelidir.'}
+];
+
+const dietMeta={
+  standard:{pill:'🍖 Standart',cls:'standard',info:'Tüm hayvansal ürünler Hanefi kurallarına göre değerlendirilir.'},
+  vegan:{pill:'🌿 Vegan',cls:'vegan',info:'Vegan ürünlerde hayvansal katkı olmadığı varsayılır ancak alkol kontrol edilir.'},
+  vegetarian:{pill:'🥛 Vejetaryen',cls:'vegetarian',info:'Et içermez ancak jelatin, E120 ve alkol riskleri taranır.'}
+};
+
+function setDiet(d){
+  diet=d;
+  ['standard','vegan','vegetarian'].forEach(m=>{
+    document.getElementById('d-'+m).className='diet-btn'+(m===d?' sel-'+m:'');
+  });
+  const m=dietMeta[d];
+  document.getElementById('diet-info').textContent=m.info;
+  const p=document.getElementById('mode-pill');
+  p.textContent=m.pill; p.className='mode-pill '+m.cls;
+}
+
+function goTab(t){
+  ['barcode','photo'].forEach((n,i)=>{
+    document.querySelectorAll('.tab')[i].classList.toggle('on',n===t);
+  });
+  document.getElementById('tab-barcode').style.display = (t==='barcode'?'block':'none');
+  document.getElementById('tab-photo').style.display = (t==='photo'?'block':'none');
+  if(t!=='barcode'&&scanOn) stopScanner();
+}
+
+// BARKOD TARAYICI
+function toggleScanner(){scanOn?stopScanner():startScanner()}
+function startScanner(){
+  document.getElementById('scanner-box').style.display='block';
+  document.getElementById('scan-btn').innerHTML='⏹ &nbsp; Durdur';
+  scanOn=true;
+  Quagga.init({
+    inputStream:{name:"Live",type:"LiveStream",target:document.querySelector('#interactive'),constraints:{facingMode:"environment"}},
+    decoder:{readers:["ean_reader","ean_8_reader","code_128_reader","upc_reader"]}
+  },function(err){
+    if(err){showErr("Kamera başlatılamadı. Yerel HTML kısıtlaması veya izin eksik.");stopScanner();return}
+    Quagga.start();
+  });
+  Quagga.onDetected(function(r){
+    const code=r.codeResult.code;
+    stopScanner();
+    fetchProduct(code);
+  });
+}
+function stopScanner(){
+  try{Quagga.stop()}catch(e){}
+  scanOn=false;
+  document.getElementById('scanner-box').style.display='none';
+  document.getElementById('scan-btn').innerHTML='📷 &nbsp; Kamerayı Başlat';
+}
+
+// OPEN FOOD FACTS VERİ ÇEKME
+async function fetchProduct(barcode){
+  showLoad("Ürün aranıyor",`Barkod ${barcode} internetten sorgulanıyor...`);
+  hideResult(); hideErr();
+  try{
+    const res=await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+    const d=await res.json();
+    if(!d.product){
+      showErr(`Ürün veritabanında bulunamadı (${barcode}). Lütfen yan sekmeye geçip içindekileri elle yapıştırın.`);
+      hideLoad(); return;
+    }
+    const p=d.product;
+    const name=p.product_name_tr||p.product_name_en||p.product_name||'Bilinmeyen Ürün';
+    const ing=p.ingredients_text_tr||p.ingredients_text_en||p.ingredients_text||'';
+    
+    if(!ing){
+      showErr(`"${name}" ürünü bulundu fakat içinde maddeler yazmıyor. Lütfen metni kopyalayıp yan sekmeden taratın.`);
+      hideLoad(); return;
+    }
+    
+    localAnalyze(name, ing);
+  }catch(e){
+    showErr("Open Food Facts sunucusuna bağlanırken hata oluştu.");
+    hideLoad();
+  }
+}
+
+function lookupBarcode(){
+  const c=document.getElementById('barcode-inp').value.trim();
+  if(!c){showErr("Barkod numarası girin.");return}
+  fetchProduct(c);
+}
+
+function analyzeText(){
+  const t=document.getElementById('ing-text').value.trim();
+  if(!t){showErr("İçindekiler listesi boş bırakılamaz.");return}
+  localAnalyze("Manuel Giriş / Analiz", t);
+}
+
+// YEREL ANALİZ MOTORU
+function localAnalyze(productName, ingredientsText){
+  showLoad("Analiz ediliyor","Kritik bileşenler taranıyor...");
+  const text = ingredientsText.toLowerCase();
+  let bulunanlar = [];
+  let durum = 'helal'; 
+
+  // 1. Haram Kontrolü
+  haramList.forEach(item => {
+    item.keys.forEach(key => {
+      if(text.includes(key)){
+        bulunanlar.push({isim: item.name + ` (${key})`, karar: 'haram', neden: item.why});
+        durum = 'haram';
+      }
+    });
+  });
+
+  // 2. Şüpheli Kontrolü
+  supheliList.forEach(item => {
+    item.keys.forEach(key => {
+      if(text.includes(key)){
+        bulunanlar.push({isim: item.name + ` (${key})`, karar: 'suphelı', neden: item.why});
+        if(durum !== 'haram') durum = 'suphelı';
+      }
+    });
+  });
+
+  let aciklama = "Ürün içeriğinde Hanefi mezhebine aykırı herhangi bir şüpheli veya haram maddeye rastlanmamıştır.";
+  if(durum === 'haram') aciklama = "DİKKAT! Ürün içerisinde Hanefi mezhebine göre kesinlikle tüketilmemesi gereken maddeler tespit edilmiştir.";
+  if(durum === 'suphelı') aciklama = "Üründe kaynağı beliersiz, helal sertifikası incelenmesi gereken şüpheli katkı maddeleri mevcuttur.";
+
+  const finalResult = {
+    genel_karar: durum,
+    aciklama: aciklama,
+    icerikler: bulunanlar.length > 0 ? bulunanlar : [{isim: 'Temiz / Şüphesiz İçerik', karar: 'helal', neden: 'Tüm temel maddeler helal standartlarına uygundur.'}]
+  };
+
+  hideLoad();
+  showResult(productName, finalResult);
+  saveHist(productName, durum);
+}
+
+function showResult(name, r){
+  const v=r.genel_karar;
+  const icons={helal:'✅',suphelı:'⚠️',haram:'❌'};
+  const labels={helal:'HELAL',suphelı:'ŞÜPHELİ',haram:'HARAM'};
+  const descs={
+    helal:'Hanefi mezhebine göre güvenle tüketilebilir.',
+    suphelı:'Bazı maddeler net değil — üreticiden kökenini öğrenin.',
+    haram:'Hanefi kurallarına göre tüketilmesi caiz değildir.'
+  };
+  document.getElementById('v-band').className='verdict-band '+v;
+  document.getElementById('v-icon').textContent=icons[v]||'❓';
+  document.getElementById('v-label').textContent=labels[v]||v.toUpperCase();
+  document.getElementById('v-label').className='v-label '+v;
+  document.getElementById('v-desc').textContent=descs[v]||'';
+  document.getElementById('r-product').textContent=name;
+  document.getElementById('r-summary').textContent=r.aciklama;
+
+  const list=document.getElementById('ing-list');
+  list.innerHTML='';
+  const tl={helal:'Helal',suphelı:'Şüpheli',haram:'Haram'};
+  
+  r.icerikler.forEach(i=>{
+    const k=i.karar||'helal';
+    const row=document.createElement('div');
+    row.className='ing-row';
+    row.innerHTML=`<div class="ing-info"><div class="ing-name">${i.isim}</div><div class="ing-why">${i.neden}</div></div><span class="ing-tag ${k}">${tl[k]||k}</span>`;
+    list.appendChild(row);
+  });
+
+  const card=document.getElementById('result-card');
+  card.classList.add('on');
+  setTimeout(()=>card.scrollIntoView({behavior:'smooth',block:'start'}),80);
+}
+
+function saveHist(name,verdict){
+  hist.unshift({name,verdict,date:new Date().toLocaleDateString('tr-TR')});
+  if(hist.length>15) hist=hist.slice(0,15);
+  try{localStorage.setItem('hh',JSON.stringify(hist))}catch(e){}
+  renderHist();
+}
+function renderHist(){
+  if(!hist.length){document.getElementById('hist-card').style.display='none';return}
+  document.getElementById('hist-card').style.display='block';
+  const labels={helal:'Helal',suphelı:'Şüpheli',haram:'Haram'};
+  document.getElementById('hist-list').innerHTML=hist.map(h=>`
+    <div class="hist-row">
+      <div class="hist-dot ${h.verdict}"></div>
+      <div class="hist-name">${h.name}</div>
+      <div class="hist-v ${h.verdict}">${labels[h.verdict]||h.verdict}</div>
+    </div>`).join('');
+}
+function clearHist(){
+  hist=[];
+  try{localStorage.setItem('hh','[]')}catch(e){}
+  document.getElementById('hist-card').style.display='none';
+}
+
+function showLoad(t,s){document.getElementById('load-title').textContent=t;document.getElementById('load-sub').textContent=s;document.getElementById('load-card').classList.add('on')}
+function hideLoad(){document.getElementById('load-card').classList.remove('on')}
+function showErr(m){const e=document.getElementById('err-card');e.textContent=m;e.classList.add('on');e.scrollIntoView({behavior:'smooth',block:'nearest'})}
+function hideErr(){document.getElementById('err-card').classList.remove('on')}
+function hideResult(){document.getElementById('result-card').classList.remove('on')}
+
+renderHist();
+</script>
+</body>
+</html>
